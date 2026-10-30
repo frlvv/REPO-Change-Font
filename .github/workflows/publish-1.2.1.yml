@@ -25,11 +25,11 @@ jobs:
       - name: Download and verify release files
         run: |
           set -euo pipefail
-          base='https://raw.githubusercontent.com/frlvv/REPO-Change-Font/58bae3f7ea399be34bc5710f93abb722a32e5126'
-          curl --fail --silent --show-error --location "$base/R.E.P.O.%20Change%20Font.exe" --output 'R.E.P.O. Change Font.exe'
+          base='https://raw.githubusercontent.com/frlvv/REPO-Change-Font/7983aed42a3ba39b9fbd2193b5829bad5110ae1c'
+          curl --fail --silent --show-error --location "$base/R.E.P.O.Change.Font.exe" --output 'R.E.P.O.Change.Font.exe'
           curl --fail --silent --show-error --location "$base/SHA256SUMS.txt" --output SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
-          echo 'ae01b4caa991171b8c1aba29cd85684e0ea888b59f0a3a25d4f871bad49d181f  R.E.P.O. Change Font.exe' | sha256sum --check -
+          echo 'ae01b4caa991171b8c1aba29cd85684e0ea888b59f0a3a25d4f871bad49d181f  R.E.P.O.Change.Font.exe' | sha256sum --check -
       - name: Publish EXE
         run: |
           set -euo pipefail
@@ -46,8 +46,9 @@ jobs:
           Official builds are available only in this repository. Third-party modified or repackaged files are not official. See README and LICENSE.
           NOTES
           if gh release view v1.2.1 --repo "$GH_REPO" > /dev/null 2>&1; then
-            gh release upload v1.2.1 'R.E.P.O. Change Font.exe' SHA256SUMS.txt --clobber --repo "$GH_REPO"
+            gh release upload v1.2.1 'R.E.P.O.Change.Font.exe' SHA256SUMS.txt --clobber --repo "$GH_REPO"
             gh release edit v1.2.1 --draft=false --latest --title 'R.E.P.O. Change Font 1.2.1' --notes-file notes.md --repo "$GH_REPO"
           else
-            gh release create v1.2.1 'R.E.P.O. Change Font.exe' SHA256SUMS.txt --target 6d828e6c10383ec7c359fdcf79fee7441f692005 --title 'R.E.P.O. Change Font 1.2.1' --notes-file notes.md --latest --repo "$GH_REPO"
+            gh release create v1.2.1 'R.E.P.O.Change.Font.exe' SHA256SUMS.txt --target 6d828e6c10383ec7c359fdcf79fee7441f692005 --title 'R.E.P.O. Change Font 1.2.1' --notes-file notes.md --latest --repo "$GH_REPO"
           fi
+
