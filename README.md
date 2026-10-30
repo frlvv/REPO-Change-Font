@@ -1,3 +1,5 @@
+<p align=«left"><img src="assets/icon.png" alt="R.E.P.O. Change Font" width="100"></p>
+
 # R.E.P.O. Change Font
 
 Утилита для замены шрифтов в игре [R.E.P.O.](https://store.steampowered.com/app/3241660/REPO/) без использования модификаций и сторонних загрузчиков.
