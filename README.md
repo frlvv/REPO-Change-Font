@@ -2,11 +2,21 @@
 
 # R.E.P.O. Change Font
 
-Утилита для Windows, которая помогает изменить шрифты заголовков и основного текста в R.E.P.O. Интерфейс доступен на русском и английском языках.
+Замена шрифтов заголовков и обычного текста в R.E.P.O.
 
 [![Скачать последнюю версию / Download latest release](https://img.shields.io/badge/Download-EXE-efc951?style=for-the-badge)](https://github.com/frlvv/REPO-Change-Font/releases/latest)
 
-![Интерфейс программы](assets/interface-ru.png)
+<table width="100%">
+  <tr>
+    <td width="56%" valign="top">
+      <img src="assets/game-menu.png" alt="Главное меню R.E.P.O. со шрифтом Sexsmith" width="100%">
+    </td>
+    <td width="44%" valign="top">
+      <img src="assets/game-level.png" alt="Экран уровня со шрифтом Sexsmith" width="100%">
+      <img src="assets/game-hud.png" alt="Шрифт в игровом интерфейсе R.E.P.O." width="100%">
+    </td>
+  </tr>
+</table>
 
 ## Содержание / Contents
 
@@ -18,7 +28,7 @@
 
 ### Установка и использование
 
-1. Скачайте `.exe` на странице [последнего выпуска](https://github.com/frlvv/REPO-Change-Font/releases/latest) и запустите его в Windows.
+1. Скачайте и запустите `.exe` из [последнего выпуска](https://github.com/frlvv/REPO-Change-Font/releases/latest).
 2. Выберите папку игры R.E.P.O.
 3. При необходимости импортируйте собственный шрифт `.ttf` или `.otf`.
 4. Выберите шрифты для заголовков и основного текста, настройте интервалы и нажмите «Применить».
@@ -26,17 +36,24 @@
 
 Sexsmith доступен сразу после запуска. Программа сохраняет добавленные шрифты в библиотеке и создаёт резервную копию исходного файла игры.
 
+<details>
+<summary>Интерфейс программы</summary>
+
+![Интерфейс программы](assets/interface-ru.png)
+
+</details>
+
 ### Официальный источник
 
 Официальные сборки доступны только в выпусках этого репозитория. Проверяйте SHA-256 файла по значению, опубликованному в официальном выпуске. Автор не несёт ответственности за изменённые, перепакованные или заражённые файлы из сторонних источников. Используйте программу на свой риск.
 
 ## English
 
-A Windows utility for changing heading and body fonts in R.E.P.O., with Russian and English interfaces.
+Change heading and body fonts in R.E.P.O.
 
 ### Getting started
 
-1. Download the `.exe` from the [latest release](https://github.com/frlvv/REPO-Change-Font/releases/latest) and run it on Windows.
+1. Download and run the `.exe` from the [latest release](https://github.com/frlvv/REPO-Change-Font/releases/latest).
 2. Select your R.E.P.O. game folder.
 3. Optionally import your own `.ttf` or `.otf` font.
 4. Choose the heading and body fonts, adjust spacing, and select Apply.

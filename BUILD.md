@@ -1,6 +1,6 @@
-# Building on Windows
+# Build from source
 
-The build requires Python, the .NET Framework C# compiler included with Windows, and a local installation of R.E.P.O. build 26294889. The script reads the original game asset or a matching backup; it does not modify the game. Game files and generated resources remain local.
+The build requires Python, the .NET Framework C# compiler, and a local installation of R.E.P.O. build 26294889. The script reads the original game asset or a matching backup; it does not modify the game. Game files and generated resources remain local.
 
 ```powershell
 py -m venv .venv
