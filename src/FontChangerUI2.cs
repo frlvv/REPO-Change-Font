@@ -74,6 +74,10 @@ class UpdateSwitch : CheckBox {
     public UpdateSwitch(){SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);Cursor=Cursors.Hand;}
     protected override void OnPaint(PaintEventArgs e){e.Graphics.Clear(BackColor);var track=new RectangleF(0,(Height-16)/2F,29,16);Skin.Shape(e.Graphics,track,Checked?Skin.Accent:Skin.Raised,Skin.Border,8);using(var b=new SolidBrush(Checked?Skin.Background:Skin.Muted))e.Graphics.FillEllipse(b,Checked?16:3,(Height-10)/2F,10,10);TextRenderer.DrawText(e.Graphics,Text,Font,new Rectangle(36,0,Width-36,Height),ForeColor,TextFormatFlags.VerticalCenter|TextFormatFlags.Left|TextFormatFlags.EndEllipsis);if(Focused && ShowFocusCues)ControlPaint.DrawFocusRectangle(e.Graphics,ClientRectangle,ForeColor,BackColor);}
 }
+class UpdateTooltip : Control {
+    public UpdateTooltip(){SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);BackColor=Skin.Background;Font=new Font("Segoe UI",9);Visible=false;TabStop=false;}
+    protected override void OnPaint(PaintEventArgs e){e.Graphics.Clear(BackColor);Skin.Shape(e.Graphics,new RectangleF(1,1,Width-3,Height-3),Skin.Raised,Skin.Border,8);TextRenderer.DrawText(e.Graphics,Text,Font,new Rectangle(12,4,Width-24,Height-8),Skin.Text,TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak);}
+}
 class FontModeSwitch : Control {
     bool separate=true,ru=true,mouseFocus;
     public bool Separate {get{return separate;}set{separate=value;Invalidate();}}
@@ -203,7 +207,7 @@ class ChangeFontWindow : Form {
     readonly SpacingInput spacing;
     readonly Panel separator;
     readonly Label spacingLabel,gameLabel,status,title;
-    readonly CheckBox autoUpdate; readonly LinkLabel updateLink,gameUpdate; readonly ToolTip updateTip; AppUpdater.Release availableUpdate; readonly string libraryPath; List<FontChoice> libraryEntries;
+    readonly CheckBox autoUpdate; readonly LinkLabel updateLink,gameUpdate; readonly UpdateTooltip updateTip; AppUpdater.Release availableUpdate; readonly string libraryPath; List<FontChoice> libraryEntries;
     readonly PictureBox appImage;
     readonly QuietButton apply,restore,chooseGame,ruButton,enButton,minButton,maxButton,closeButton;
     PreviewFace regularFace,boldFace;
@@ -242,11 +246,11 @@ class ChangeFontWindow : Form {
         chooseGame=new QuietButton{Ghost=true};chooseGame.Click+=delegate{using(var dialog=new FolderBrowserDialog{Description=ru?"Выбери папку R.E.P.O.":"Choose your R.E.P.O. folder",SelectedPath=game,ShowNewFolderButton=false})if(dialog.ShowDialog()==DialogResult.OK){game=dialog.SelectedPath;MarkPending();UpdateGame();SavePrefs();}};
         apply=new QuietButton{Primary=true};restore=new QuietButton();
         apply.Click+=async delegate{await Run(false);};restore.Click+=async delegate{await Run(true);};
-        status=new Label{ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9)};autoUpdate=new UpdateSwitch{Checked=autoUpdateEnabled,ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9),AutoSize=false,TextAlign=ContentAlignment.MiddleLeft};autoUpdate.CheckedChanged+=delegate{autoUpdateEnabled=autoUpdate.Checked;SavePrefs();};updateTip=new ToolTip();updateLink=new LinkLabel{LinkColor=Skin.Accent,ActiveLinkColor=Skin.Text,VisitedLinkColor=Skin.Accent,BackColor=Skin.Background,TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",9),LinkBehavior=LinkBehavior.HoverUnderline,Visible=false};updateLink.LinkClicked+=async delegate{await InstallUpdate();};
-        Controls.AddRange(new Control[]{title,appImage,minButton,maxButton,closeButton,ruButton,enButton,headingTile,bodyTile,preview,spacingLabel,spacing,separator,gameLabel,gameUpdate,chooseGame,apply,restore,status,autoUpdate,updateLink});
+        status=new Label{ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9)};autoUpdate=new UpdateSwitch{Checked=autoUpdateEnabled,ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9),AutoSize=false,TextAlign=ContentAlignment.MiddleLeft};autoUpdate.CheckedChanged+=delegate{autoUpdateEnabled=autoUpdate.Checked;SavePrefs();};updateTip=new UpdateTooltip();autoUpdate.MouseEnter+=delegate{ShowUpdateTip();};autoUpdate.MouseLeave+=delegate{updateTip.Visible=false;};autoUpdate.GotFocus+=delegate{ShowUpdateTip();};autoUpdate.LostFocus+=delegate{updateTip.Visible=false;};updateLink=new LinkLabel{LinkColor=Skin.Accent,ActiveLinkColor=Skin.Text,VisitedLinkColor=Skin.Accent,BackColor=Skin.Background,TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",9),LinkBehavior=LinkBehavior.HoverUnderline,Visible=false};updateLink.LinkClicked+=async delegate{await InstallUpdate();};
+        Controls.AddRange(new Control[]{title,appImage,minButton,maxButton,closeButton,ruButton,enButton,headingTile,bodyTile,preview,spacingLabel,spacing,separator,gameLabel,gameUpdate,chooseGame,apply,restore,status,autoUpdate,updateLink,updateTip});
         minButton.TabStop=maxButton.TabStop=closeButton.TabStop=preview.TabStop=false;
         headingTile.TabIndex=0;bodyTile.TabIndex=1;spacing.TabIndex=2;chooseGame.TabIndex=3;apply.TabIndex=4;restore.TabIndex=5;ruButton.TabIndex=6;enButton.TabIndex=7;
-        Activated+=delegate{UpdateGame();};Resize+=delegate{LayoutWindow();};FormClosing+=delegate(object s,FormClosingEventArgs e){if(busy)e.Cancel=true;else SavePrefs();};
+        Activated+=delegate{UpdateGame();};Deactivate+=delegate{updateTip.Visible=false;};Resize+=delegate{LayoutWindow();};FormClosing+=delegate(object s,FormClosingEventArgs e){if(busy)e.Cancel=true;else SavePrefs();};
         FormClosed+=delegate{regularFace.Dispose();boldFace.Dispose();appImage.Image.Dispose();Icon.Dispose();windowIconStream.Dispose();};
         LayoutWindow();Localize();loading=false;
         if(autoUpdateEnabled)Shown+=async delegate{await CheckUpdates();};
@@ -254,6 +258,8 @@ class ChangeFontWindow : Form {
     }
     async Task CheckUpdates(){try{var release=await Task.Run(()=>AppUpdater.Check());if(IsDisposed || !autoUpdateEnabled || release==null)return;availableUpdate=release;updateLink.Text=T("Установить обновление","Install update");updateLink.Visible=true;}catch{}}
     async Task InstallUpdate(){if(availableUpdate==null || busy)return;updateLink.Enabled=false;SetBusy(true);try{var file=await Task.Run(()=>AppUpdater.Download(availableUpdate));if(IsDisposed)return;AppUpdater.Install(file);SetBusy(false);Close();}catch{SetBusy(false);MessageBox.Show(this,T("Не удалось загрузить или установить обновление. Попробуй ещё раз.","Couldn't download or install the update. Please try again."),AppName,MessageBoxButtons.OK,MessageBoxIcon.Information);updateLink.Enabled=true;}}
+    void PositionUpdateTip(){if(updateTip==null || autoUpdate==null)return;int width=340,height=48;updateTip.SetBounds(autoUpdate.Right-width,autoUpdate.Top-height-6,width,height);}
+    void ShowUpdateTip(){PositionUpdateTip();updateTip.Visible=true;updateTip.BringToFront();}
     void DragHeader(object sender,MouseEventArgs e){if(e.Button!=MouseButtons.Left)return;if(sender==this && e.Y>54)return;ReleaseCapture();SendMessage(Handle,0xA1,2,0);}
     void ToggleMax(){if(WindowState==FormWindowState.Maximized)WindowState=FormWindowState.Normal;else{MaximizedBounds=Screen.FromControl(this).WorkingArea;WindowState=FormWindowState.Maximized;}maxButton.WindowGlyph=WindowState==FormWindowState.Maximized?"restore":"max";maxButton.Invalidate();LayoutWindow();}
     protected override void WndProc(ref Message m){base.WndProc(ref m);if(m.Msg==0x84 && WindowState==FormWindowState.Normal && (int)m.Result==1){long pos=m.LParam.ToInt64();Point p=PointToClient(new Point((short)(pos&65535),(short)((pos>>16)&65535)));int edge=6;bool l=p.X<edge,r=p.X>=Width-edge,t=p.Y<edge,b=p.Y>=Height-edge;if(l&&t)m.Result=(IntPtr)13;else if(r&&t)m.Result=(IntPtr)14;else if(l&&b)m.Result=(IntPtr)16;else if(r&&b)m.Result=(IntPtr)17;else if(l)m.Result=(IntPtr)10;else if(r)m.Result=(IntPtr)11;else if(t)m.Result=(IntPtr)12;else if(b)m.Result=(IntPtr)15;}}
@@ -264,13 +270,13 @@ class ChangeFontWindow : Form {
         preview.SetBounds(pad,232,w-pad*2,previewH);
         int settingsY=232+previewH+24;spacingLabel.SetBounds(pad,settingsY+10,w-260,30);spacing.SetBounds(w-pad-160,settingsY,160,42);
         int lineY=settingsY+64;separator.SetBounds(pad,lineY,w-pad*2,1);gameLabel.SetBounds(pad,lineY+24,w-pad*2-380,27);gameUpdate.SetBounds(w-pad-360,lineY+20,190,30);chooseGame.SetBounds(w-pad-158,lineY+14,158,37);
-        int actionY=lineY+62;apply.SetBounds(pad,actionY,cw,46);restore.SetBounds(pad+cw+gap,actionY,cw,46);status.SetBounds(pad,actionY+60,w/2-pad-110,24);autoUpdate.SetBounds(w-210,actionY+60,182,24);updateLink.SetBounds(w/2-100,actionY+60,190,24);
+        int actionY=lineY+62;apply.SetBounds(pad,actionY,cw,46);restore.SetBounds(pad+cw+gap,actionY,cw,46);status.SetBounds(pad,actionY+60,w/2-pad-110,24);int switchWidth=36+TextRenderer.MeasureText(autoUpdate.Text,autoUpdate.Font,Size.Empty,TextFormatFlags.NoPadding).Width;autoUpdate.SetBounds(w-pad-switchWidth,actionY+60,switchWidth,24);PositionUpdateTip();updateLink.SetBounds(w/2-100,actionY+60,190,24);
         if(Width>0 && Height>0){Region old=Region;using(var path=Skin.Round(new RectangleF(0,0,Width,Height),WindowState==FormWindowState.Maximized?1:12))Region=new Region(path);if(old!=null)old.Dispose();}Invalidate();
     }
     protected override void OnPaint(PaintEventArgs e){base.OnPaint(e);Skin.Shape(e.Graphics,new RectangleF(0.5F,0.5F,Width-1,Height-1),Color.Transparent,Skin.Border,WindowState==FormWindowState.Maximized?1:12);}
     string T(string russian,string english){return ru?russian:english;}
     void Localize(){bodyTile.Localize(ru);headingTile.Localize(ru);spacing.Localize(ru);ruButton.Selected=ru;enButton.Selected=!ru;ruButton.Invalidate();enButton.Invalidate();
-        autoUpdate.Text=T("Автообновление","Auto-update");updateTip.SetToolTip(autoUpdate,T("Автоматически искать обновления при запуске программы","Automatically check for updates when the program starts"));updateLink.Text=availableUpdate==null?"":T("Установить обновление","Install update");spacingLabel.Text=T("Расстояние между буквами","Letter spacing");UpdateApplyButton();restore.Text=T("Вернуть исходный","Restore original");chooseGame.Text=T("Выбрать папку","Choose folder");
+        autoUpdate.Text=T("Автообновление","Auto-update");updateTip.Text=T("Автоматически искать обновления при запуске программы","Automatically check for updates when the program starts");autoUpdate.AccessibleDescription=updateTip.Text;LayoutWindow();updateTip.Invalidate();updateLink.Text=availableUpdate==null?"":T("Установить обновление","Install update");spacingLabel.Text=T("Расстояние между буквами","Letter spacing");UpdateApplyButton();restore.Text=T("Вернуть исходный","Restore original");chooseGame.Text=T("Выбрать папку","Choose folder");
         minButton.AccessibleName=T("Свернуть","Minimize");maxButton.AccessibleName=T("Развернуть или восстановить","Maximize or restore");closeButton.AccessibleName=T("Закрыть","Close");
         preview.AccessibleName=T("Предпросмотр шрифтов","Font preview");
         status.Text=applied?"":T("Готово","Ready");status.ForeColor=Skin.Muted;UpdateTiles();UpdateGame();RefreshPreview();
