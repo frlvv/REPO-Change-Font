@@ -236,11 +236,11 @@ class FontPreview : Control {
         using(var measure=face.Font(titleSize)){float estimated=g.MeasureString(Sample,measure).Width+Sample.Length*titleSize*(float)Spacing/100;if(estimated>Width-48)titleSize=Math.Max(17,titleSize*(Width-48)/estimated);}
         float top=Math.Max(63,(Height-166)/2F+20);
         using(var title=face.Font(titleSize))Tracked(g,Sample,title,Skin.Text,top,Width-48);
-        using(var body=Regular.Font(27))Tracked(g,"Аа Бб Вв Гг Дд – 0123456789",body,Skin.Text,top+79,Width-48);
+        using(var body=Regular.Font(27))Tracked(g,Ru?"Аа Бб Вв Гг Дд – 0123456789":"Aa Bb Cc Dd Ee – 0123456789",body,Skin.Text,top+79,Width-48);
         using(var english=Regular.Font(23))Tracked(g,"The quick brown fox jumps over the lazy dog.",english,Skin.Muted,top+125,Width-48);
     }
 }
-public class UiPrefs {public bool Ru=true,Separate=true,HeadingRegularPreset,AutoUpdate=true;public bool? BodyMatchesHeading;public decimal Spacing=1;public string Game,Regular,Bold;}
+public class UiPrefs {public bool Ru=true,HeadingRegularPreset,AutoUpdate=true;public bool? Separate,BodyMatchesHeading;public decimal Spacing=1;public string Game,Regular,Bold;}
 class ChangeFontWindow : Form {
     const string AppName="R.E.P.O. Change Font";
     readonly Engine engine;
@@ -261,10 +261,10 @@ class ChangeFontWindow : Form {
     [DllImport("user32.dll")]static extern IntPtr SendMessage(IntPtr hwnd,int msg,int wParam,int lParam);
     public ChangeFontWindow(string[] args,string prefsOverride=null,string libraryOverride=null) {
         prefsPath=prefsOverride??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"REPO Change Font","preferences.json");
-        libraryPath=libraryOverride??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"REPO Change Font","Fonts");engine=new Engine();var prefs=LoadPrefs();ru=prefs.Ru;autoUpdateEnabled=prefs.AutoUpdate;separate=prefs.BodyMatchesHeading.HasValue?!prefs.BodyMatchesHeading.Value:prefs.Separate;headingRegularPreset=prefs.HeadingRegularPreset;
+        libraryPath=libraryOverride??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"REPO Change Font","Fonts");engine=new Engine();var prefs=LoadPrefs();ru=prefs.Ru;autoUpdateEnabled=prefs.AutoUpdate;separate=prefs.BodyMatchesHeading.HasValue?!prefs.BodyMatchesHeading.Value:prefs.Separate.GetValueOrDefault(false);headingRegularPreset=prefs.HeadingRegularPreset;
         game=File.Exists(Path.Combine(prefs.Game??"","REPO.exe"))?prefs.Game:Engine.FindGame();
         regularPath=Migrate(prefs.Regular);boldPath=Migrate(prefs.Bold);
-        if(!prefs.BodyMatchesHeading.HasValue && !prefs.Separate){boldPath=regularPath;headingRegularPreset=regularPath==null;}
+        if(!prefs.BodyMatchesHeading.HasValue && prefs.Separate.HasValue && !prefs.Separate.Value){boldPath=regularPath;headingRegularPreset=regularPath==null;}
         regularFace=new PreviewFace(regularPath==null?engine.DefaultFont(false):File.ReadAllBytes(regularPath));
         boldFace=new PreviewFace(boldPath==null?engine.DefaultFont(!headingRegularPreset):File.ReadAllBytes(boldPath));
         Text=AppName;BackColor=Skin.Background;ForeColor=Skin.Text;Font=new Font("Segoe UI",10);FormBorderStyle=FormBorderStyle.None;
