@@ -71,11 +71,54 @@ class HoldButton : QuietButton {
     protected override void Dispose(bool disposing){if(disposing)repeat.Dispose();base.Dispose(disposing);}
 }
 class UpdateSwitch : CheckBox {
-    public UpdateSwitch(){SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);Cursor=Cursors.Hand;}
-    protected override void OnPaint(PaintEventArgs e){e.Graphics.Clear(BackColor);var track=new RectangleF(0,(Height-16)/2F,29,16);Skin.Shape(e.Graphics,track,Checked?Skin.Accent:Skin.Raised,Skin.Border,8);using(var b=new SolidBrush(Checked?Skin.Background:Skin.Muted))e.Graphics.FillEllipse(b,Checked?16:3,(Height-10)/2F,10,10);TextRenderer.DrawText(e.Graphics,Text,Font,new Rectangle(36,0,Width-36,Height),ForeColor,TextFormatFlags.VerticalCenter|TextFormatFlags.Left|TextFormatFlags.EndEllipsis);if(Focused && ShowFocusCues)ControlPaint.DrawFocusRectangle(e.Graphics,ClientRectangle,ForeColor,BackColor);}
+    const uint SPI_GETCLIENTAREAANIMATION=0x1042;
+    [DllImport("user32.dll")]
+    static extern bool SystemParametersInfo(uint action,uint parameter,ref bool value,uint flags);
+    static bool AnimationEnabled() {
+        bool enabled=true;
+        return !SystemParametersInfo(SPI_GETCLIENTAREAANIMATION,0,ref enabled,0) || enabled;
+    }
+    readonly Timer animation=new Timer{Interval=15};
+    readonly System.Diagnostics.Stopwatch clock=new System.Diagnostics.Stopwatch();
+    float position, start, target;
+    public UpdateSwitch() {
+        SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);
+        Cursor=Cursors.Hand;
+        animation.Tick+=delegate{Advance();};
+    }
+    void Advance() {
+        float t=Math.Min(1F,(float)clock.Elapsed.TotalMilliseconds/150F);
+        float eased=1-(1-t)*(1-t)*(1-t);
+        position=start+(target-start)*eased;
+        if(t>=1){position=target;animation.Stop();clock.Stop();}
+        Invalidate();
+    }
+    protected override void OnCheckedChanged(EventArgs e) {
+        if(animation.Enabled)Advance();
+        target=Checked?1F:0F;
+        if(!IsHandleCreated || !AnimationEnabled()) {
+            animation.Stop();clock.Stop();position=target;Invalidate();
+        } else {
+            start=position;clock.Restart();animation.Start();
+        }
+        base.OnCheckedChanged(e);
+    }
+    static Color Blend(Color a,Color b,float t) {
+        return Color.FromArgb((int)(a.R+(b.R-a.R)*t),(int)(a.G+(b.G-a.G)*t),(int)(a.B+(b.B-a.B)*t));
+    }
+    protected override void OnPaint(PaintEventArgs e){e.Graphics.Clear(BackColor);var track=new RectangleF(0,(Height-16)/2F,29,16);Skin.Shape(e.Graphics,track,Blend(Skin.Raised,Skin.Accent,position),Skin.Border,8);using(var b=new SolidBrush(Blend(Skin.Muted,Skin.Background,position)))e.Graphics.FillEllipse(b,3+13*position,(Height-10)/2F,10,10);TextRenderer.DrawText(e.Graphics,Text,Font,new Rectangle(36,0,Width-36,Height),ForeColor,TextFormatFlags.VerticalCenter|TextFormatFlags.Left|TextFormatFlags.EndEllipsis);if(Focused && ShowFocusCues)ControlPaint.DrawFocusRectangle(e.Graphics,ClientRectangle,ForeColor,BackColor);}
+    protected override void Dispose(bool disposing){if(disposing){animation.Stop();animation.Dispose();}base.Dispose(disposing);}
 }
 class UpdateTooltip : Control {
     public UpdateTooltip(){SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);BackColor=Skin.Background;Font=new Font("Segoe UI",9);Visible=false;TabStop=false;}
+    protected override void OnSizeChanged(EventArgs e) {
+        base.OnSizeChanged(e);
+        if(Width>3 && Height>3) {
+            Region old=Region;
+            using(var shape=Skin.Round(new RectangleF(1,1,Width-3,Height-3),8))Region=new Region(shape);
+            if(old!=null)old.Dispose();
+        }
+    }
     protected override void OnPaint(PaintEventArgs e){e.Graphics.Clear(BackColor);Skin.Shape(e.Graphics,new RectangleF(1,1,Width-3,Height-3),Skin.Raised,Skin.Border,8);TextRenderer.DrawText(e.Graphics,Text,Font,new Rectangle(12,4,Width-24,Height-8),Skin.Text,TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak);}
 }
 class FontModeSwitch : Control {
@@ -247,7 +290,7 @@ class ChangeFontWindow : Form {
         apply=new QuietButton{Primary=true};restore=new QuietButton();
         apply.Click+=async delegate{await Run(false);};restore.Click+=async delegate{await Run(true);};
         status=new Label{ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9)};autoUpdate=new UpdateSwitch{Checked=autoUpdateEnabled,ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9),AutoSize=false,TextAlign=ContentAlignment.MiddleLeft};autoUpdate.CheckedChanged+=delegate{autoUpdateEnabled=autoUpdate.Checked;SavePrefs();};updateTip=new UpdateTooltip();autoUpdate.MouseEnter+=delegate{ShowUpdateTip();};autoUpdate.MouseLeave+=delegate{updateTip.Visible=false;};autoUpdate.GotFocus+=delegate{ShowUpdateTip();};autoUpdate.LostFocus+=delegate{updateTip.Visible=false;};updateLink=new LinkLabel{LinkColor=Skin.Accent,ActiveLinkColor=Skin.Text,VisitedLinkColor=Skin.Accent,BackColor=Skin.Background,TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",9),LinkBehavior=LinkBehavior.HoverUnderline,Visible=false};updateLink.LinkClicked+=delegate{OpenUpdate();};
-        githubLink=new LinkLabel{Text="GitHub",LinkColor=Skin.Accent,ActiveLinkColor=Skin.Text,VisitedLinkColor=Skin.Accent,BackColor=Skin.Background,Font=new Font("Segoe UI",9),LinkBehavior=LinkBehavior.HoverUnderline,TabIndex=8};githubLink.LinkClicked+=delegate{try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/frlvv/REPO-Change-Font"){UseShellExecute=true});}catch{MessageBox.Show(this,T("Не удалось открыть GitHub.","Could not open GitHub."),AppName);}};status.Visible=false;status.TextChanged+=delegate{bool hasStatus=!string.IsNullOrEmpty(status.Text);status.Visible=hasStatus;githubLink.Visible=!hasStatus;};
+        githubLink=new LinkLabel{Text="GitHub",LinkColor=Skin.Muted,ActiveLinkColor=Skin.Muted,VisitedLinkColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9),LinkBehavior=LinkBehavior.HoverUnderline,TabIndex=8};githubLink.LinkClicked+=delegate{try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/frlvv/REPO-Change-Font"){UseShellExecute=true});}catch{MessageBox.Show(this,T("Не удалось открыть GitHub.","Could not open GitHub."),AppName);}};status.Visible=false;status.TextChanged+=delegate{bool hasStatus=!string.IsNullOrEmpty(status.Text);status.Visible=hasStatus;githubLink.Visible=!hasStatus;};
         Controls.AddRange(new Control[]{title,appImage,minButton,maxButton,closeButton,ruButton,enButton,headingTile,bodyTile,preview,spacingLabel,spacing,separator,gameLabel,gameUpdate,chooseGame,apply,restore,status,githubLink,autoUpdate,updateLink,updateTip});
         minButton.TabStop=maxButton.TabStop=closeButton.TabStop=preview.TabStop=false;
         headingTile.TabIndex=0;bodyTile.TabIndex=1;spacing.TabIndex=2;chooseGame.TabIndex=3;apply.TabIndex=4;restore.TabIndex=5;ruButton.TabIndex=6;enButton.TabIndex=7;
