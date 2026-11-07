@@ -32,8 +32,9 @@ def probe_offset(objid, mutate, probe, fmt):
     start=after.find(needle)
     assert start>=0 and after.find(needle,start+1)<0,(objid,probe,start,after.find(needle,start+1),len(before),len(after))
     obj.set_raw_data(before);return start
+manifest=json.loads((args.output/'manifest.json').read_text())
 font_offsets=[]
-for ident,fontid,style in [(14291,1408,'Medium'),(19116,19113,'Bold')]:
+for ident,fontid,style in [(manifest['primary_asset'],manifest['primary_font'],'Medium'),(manifest['bold_asset'],manifest['bold_font'],'Bold')]:
     face={}
     for i,key in enumerate(['m_PointSize','m_Scale','m_UnitsPerEM','m_LineHeight','m_AscentLine','m_CapLine','m_MeanLine','m_Baseline','m_DescentLine','m_SuperscriptOffset','m_SubscriptOffset','m_UnderlineOffset','m_UnderlineThickness','m_StrikethroughOffset','m_StrikethroughThickness','m_TabWidth']):
         integer=key=='m_UnitsPerEM';probe=1234567 if integer else 123.456+i
@@ -46,16 +47,15 @@ for ident,fontid,style in [(14291,1408,'Medium'),(19116,19113,'Bold')]:
     default_font=(base/'assets/Sexsmith.otf').read_bytes()
     font_offsets.append({'assetId':ident,'fontId':fontid,'style':style,'face':face,'fields':fields,'weightSlots':weights,'fontPrefix':list(fontobj[:at-4]),'fontSuffix':list(fontobj[(at+len(fontbytes)+3)//4*4:]),'fontBytes':list(default_font)})
 materials=[]
-for ident in [2,114,115,117,19115]:
+for ident in [manifest['primary_material']]+manifest['material_presets']+[manifest['bold_material']]:
     obj=b.objects[ident];before=obj.get_raw_data();data=obj.read_typetree();slots={}
     for i,key in enumerate(['_WeightNormal','_WeightBold']):
         d=copy.deepcopy(data);probe=158.456+i
         d['m_SavedProperties']['m_Floats']=[(k,probe if k==key else v) for k,v in d['m_SavedProperties']['m_Floats']]
         after=obj.save_typetree(d);needle=struct.pack('<f',probe);at=after.find(needle)
         assert at>=0 and after.find(needle,at+1)<0;slots[key]=at;obj.set_raw_data(before)
-    materials.append({'id':ident,'bold':ident==19115,'slots':slots})
-manifest=json.loads((args.output/'manifest.json').read_text())
-template={'header':list(header),'dataOffset':offset,'objects':objects,'fonts':font_offsets,'materials':materials,'sourceHash':manifest['source_sha256'],'knownHashes':[manifest['patched_sha256'],'793a07e2971c6d4b9d2f25064a5464d9009f7d3a2cdd8e34b369f7eb56bdebbf','c3a66bcabb2ef463b11f46cbdf515b106190c7d6e913ecc681ba9fc7e62415eb'],'build':'26294889'}
+    materials.append({'id':ident,'bold':ident==manifest['bold_material'],'slots':slots})
+template={'header':list(header),'dataOffset':offset,'objects':objects,'fonts':font_offsets,'materials':materials,'sourceHash':manifest['source_sha256'],'knownHashes':[manifest['patched_sha256']]+(['793a07e2971c6d4b9d2f25064a5464d9009f7d3a2cdd8e34b369f7eb56bdebbf','c3a66bcabb2ef463b11f46cbdf515b106190c7d6e913ecc681ba9fc7e62415eb'] if manifest['build']=='26294889' else []),'build':manifest['build'],'boldAssetId':manifest['bold_asset']}
 packed=gzip.compress(json.dumps(template,separators=(',',':')).encode(),9,mtime=0)
 (args.output/'app-template.json.gz').write_bytes(packed)
 print('Template bytes',len(packed),'objects',len(objects),'header',len(header))

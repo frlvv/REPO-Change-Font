@@ -45,6 +45,7 @@
 * Шрифты можно настроить как отдельно, так и раздельно для заголовков и обычного текста.
 * Встроенное окно предпросмотра и ползунок межбуквенного интервала позволяют оценить результат до запуска игры.
 * Перед применением изменений программа автоматически создает резервную копию исходного файла игры и позволяет вернуть стандартный шрифт кнопкой «Вернуть исходный».
+* Автообновление проверяет новые версии программы при запуске и предлагает установить их из окна программы. Если Steam поставил обновление игры в очередь, появится ссылка на загрузки Steam.
 
 ### Установка и использование
 
@@ -70,6 +71,7 @@ A standalone utility for changing heading and body fonts in [R.E.P.O.](https://s
 * Fonts can be configured separately for the title and plain text, or use one font from the title.
 * Provides a live preview box with adjustable letter spacing before applying changes.
 * Automatically backs up original game files and restores them with a single button click.
+* Auto-update checks for new app versions at startup and offers to install them from the app. If Steam queues a game update, a link to Steam Downloads appears.
 
 ### Getting started
 

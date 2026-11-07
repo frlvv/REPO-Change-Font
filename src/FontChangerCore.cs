@@ -102,7 +102,7 @@ public class Engine {
             F(target,I(fields["boldStyle"]),0);
             F(target,I(fields["normalSpacingOffset"]),90.0*options.Spacing/100.0);
             F(target,I(fields["boldSpacing"]),0);
-            foreach(object slot in A(d["weightSlots"])) L(target,I(slot),!bold && options.SeparateBold && !options.BodyMatchesHeading?19116:0);
+            foreach(object slot in A(d["weightSlots"])) L(target,I(slot),!bold && options.SeparateBold && !options.BodyMatchesHeading?I(spec["boldAssetId"]):0);
         }
         foreach(object row in A(spec["materials"])) {
             var d=D(row);var slots=D(d["slots"]);byte[] target=changed[I(d["id"])];

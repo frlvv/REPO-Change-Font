@@ -70,6 +70,10 @@ class HoldButton : QuietButton {
     protected override void OnKeyDown(KeyEventArgs e){pointerGesture=false;base.OnKeyDown(e);}
     protected override void Dispose(bool disposing){if(disposing)repeat.Dispose();base.Dispose(disposing);}
 }
+class UpdateSwitch : CheckBox {
+    public UpdateSwitch(){SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);Cursor=Cursors.Hand;}
+    protected override void OnPaint(PaintEventArgs e){e.Graphics.Clear(BackColor);var track=new RectangleF(0,(Height-16)/2F,29,16);Skin.Shape(e.Graphics,track,Checked?Skin.Accent:Skin.Raised,Skin.Border,8);using(var b=new SolidBrush(Checked?Skin.Background:Skin.Muted))e.Graphics.FillEllipse(b,Checked?16:3,(Height-10)/2F,10,10);TextRenderer.DrawText(e.Graphics,Text,Font,new Rectangle(36,0,Width-36,Height),ForeColor,TextFormatFlags.VerticalCenter|TextFormatFlags.Left|TextFormatFlags.EndEllipsis);if(Focused && ShowFocusCues)ControlPaint.DrawFocusRectangle(e.Graphics,ClientRectangle,ForeColor,BackColor);}
+}
 class FontModeSwitch : Control {
     bool separate=true,ru=true,mouseFocus;
     public bool Separate {get{return separate;}set{separate=value;Invalidate();}}
@@ -189,7 +193,7 @@ class FontPreview : Control {
         using(var english=Regular.Font(23))Tracked(g,"The quick brown fox jumps over the lazy dog.",english,Skin.Muted,top+125,Width-48);
     }
 }
-public class UiPrefs {public bool Ru=true,Separate=true,HeadingRegularPreset;public bool? BodyMatchesHeading;public decimal Spacing=1;public string Game,Regular,Bold;}
+public class UiPrefs {public bool Ru=true,Separate=true,HeadingRegularPreset,AutoUpdate=true;public bool? BodyMatchesHeading;public decimal Spacing=1;public string Game,Regular,Bold;}
 class ChangeFontWindow : Form {
     const string AppName="R.E.P.O. Change Font";
     readonly Engine engine;
@@ -199,18 +203,18 @@ class ChangeFontWindow : Form {
     readonly SpacingInput spacing;
     readonly Panel separator;
     readonly Label spacingLabel,gameLabel,status,title;
-    readonly LinkLabel official; const string OfficialSource="https://github.com/frlvv/REPO-Change-Font"; readonly string libraryPath; List<FontChoice> libraryEntries;
+    readonly CheckBox autoUpdate; readonly LinkLabel updateLink,gameUpdate; readonly ToolTip updateTip; AppUpdater.Release availableUpdate; readonly string libraryPath; List<FontChoice> libraryEntries;
     readonly PictureBox appImage;
     readonly QuietButton apply,restore,chooseGame,ruButton,enButton,minButton,maxButton,closeButton;
     PreviewFace regularFace,boldFace;
     string game,regularPath,boldPath;
-    bool ru=true,separate=true,busy,loading=true,applied,headingRegularPreset;
+    bool ru=true,separate=true,busy,loading=true,applied,headingRegularPreset,autoUpdateEnabled;
     readonly string prefsPath;
     [DllImport("user32.dll")]static extern bool ReleaseCapture();
     [DllImport("user32.dll")]static extern IntPtr SendMessage(IntPtr hwnd,int msg,int wParam,int lParam);
     public ChangeFontWindow(string[] args,string prefsOverride=null,string libraryOverride=null) {
         prefsPath=prefsOverride??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"REPO Change Font","preferences.json");
-        libraryPath=libraryOverride??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"REPO Change Font","Fonts");engine=new Engine();var prefs=LoadPrefs();ru=prefs.Ru;separate=prefs.BodyMatchesHeading.HasValue?!prefs.BodyMatchesHeading.Value:prefs.Separate;headingRegularPreset=prefs.HeadingRegularPreset;
+        libraryPath=libraryOverride??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"REPO Change Font","Fonts");engine=new Engine();var prefs=LoadPrefs();ru=prefs.Ru;autoUpdateEnabled=prefs.AutoUpdate;separate=prefs.BodyMatchesHeading.HasValue?!prefs.BodyMatchesHeading.Value:prefs.Separate;headingRegularPreset=prefs.HeadingRegularPreset;
         game=File.Exists(Path.Combine(prefs.Game??"","REPO.exe"))?prefs.Game:Engine.FindGame();
         regularPath=Migrate(prefs.Regular);boldPath=Migrate(prefs.Bold);
         if(!prefs.BodyMatchesHeading.HasValue && !prefs.Separate){boldPath=regularPath;headingRegularPreset=regularPath==null;}
@@ -234,18 +238,22 @@ class ChangeFontWindow : Form {
         spacingLabel=new Label{ForeColor=Skin.Text,BackColor=Skin.Background};
         separator=new Panel{BackColor=Skin.Border};
         gameLabel=new Label{ForeColor=Skin.Muted,BackColor=Skin.Background};
+        gameUpdate=new LinkLabel{LinkColor=Skin.Accent,ActiveLinkColor=Skin.Text,VisitedLinkColor=Skin.Accent,BackColor=Skin.Background,TextAlign=ContentAlignment.MiddleRight,LinkBehavior=LinkBehavior.HoverUnderline,Visible=false};gameUpdate.LinkClicked+=delegate{try{System.Diagnostics.Process.Start("steam://open/downloads");}catch{MessageBox.Show(this,T("Не удалось открыть загрузки Steam.","Could not open Steam Downloads."),AppName);}};
         chooseGame=new QuietButton{Ghost=true};chooseGame.Click+=delegate{using(var dialog=new FolderBrowserDialog{Description=ru?"Выбери папку R.E.P.O.":"Choose your R.E.P.O. folder",SelectedPath=game,ShowNewFolderButton=false})if(dialog.ShowDialog()==DialogResult.OK){game=dialog.SelectedPath;MarkPending();UpdateGame();SavePrefs();}};
         apply=new QuietButton{Primary=true};restore=new QuietButton();
         apply.Click+=async delegate{await Run(false);};restore.Click+=async delegate{await Run(true);};
-        status=new Label{ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9)};official=new LinkLabel{LinkColor=Skin.Muted,ActiveLinkColor=Skin.Accent,VisitedLinkColor=Skin.Muted,BackColor=Skin.Background,TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",9),LinkBehavior=LinkBehavior.HoverUnderline};official.LinkClicked+=delegate{System.Diagnostics.Process.Start(OfficialSource);};
-        Controls.AddRange(new Control[]{title,appImage,minButton,maxButton,closeButton,ruButton,enButton,headingTile,bodyTile,preview,spacingLabel,spacing,separator,gameLabel,chooseGame,apply,restore,status,official});
+        status=new Label{ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9)};autoUpdate=new UpdateSwitch{Checked=autoUpdateEnabled,ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9),AutoSize=false,TextAlign=ContentAlignment.MiddleLeft};autoUpdate.CheckedChanged+=delegate{autoUpdateEnabled=autoUpdate.Checked;SavePrefs();};updateTip=new ToolTip();updateLink=new LinkLabel{LinkColor=Skin.Accent,ActiveLinkColor=Skin.Text,VisitedLinkColor=Skin.Accent,BackColor=Skin.Background,TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",9),LinkBehavior=LinkBehavior.HoverUnderline,Visible=false};updateLink.LinkClicked+=async delegate{await InstallUpdate();};
+        Controls.AddRange(new Control[]{title,appImage,minButton,maxButton,closeButton,ruButton,enButton,headingTile,bodyTile,preview,spacingLabel,spacing,separator,gameLabel,gameUpdate,chooseGame,apply,restore,status,autoUpdate,updateLink});
         minButton.TabStop=maxButton.TabStop=closeButton.TabStop=preview.TabStop=false;
         headingTile.TabIndex=0;bodyTile.TabIndex=1;spacing.TabIndex=2;chooseGame.TabIndex=3;apply.TabIndex=4;restore.TabIndex=5;ruButton.TabIndex=6;enButton.TabIndex=7;
-        Resize+=delegate{LayoutWindow();};FormClosing+=delegate(object s,FormClosingEventArgs e){if(busy)e.Cancel=true;else SavePrefs();};
+        Activated+=delegate{UpdateGame();};Resize+=delegate{LayoutWindow();};FormClosing+=delegate(object s,FormClosingEventArgs e){if(busy)e.Cancel=true;else SavePrefs();};
         FormClosed+=delegate{regularFace.Dispose();boldFace.Dispose();appImage.Image.Dispose();Icon.Dispose();windowIconStream.Dispose();};
         LayoutWindow();Localize();loading=false;
+        if(autoUpdateEnabled)Shown+=async delegate{await CheckUpdates();};
         if(args.Length>0 && File.Exists(args[0]))ImportFont(args[0],false);if(args.Length>1 && File.Exists(args[1]))ImportFont(args[1],true);
     }
+    async Task CheckUpdates(){try{var release=await Task.Run(()=>AppUpdater.Check());if(IsDisposed || !autoUpdateEnabled || release==null)return;availableUpdate=release;updateLink.Text=T("Установить обновление","Install update");updateLink.Visible=true;}catch{}}
+    async Task InstallUpdate(){if(availableUpdate==null || busy)return;updateLink.Enabled=false;SetBusy(true);try{var file=await Task.Run(()=>AppUpdater.Download(availableUpdate));if(IsDisposed)return;AppUpdater.Install(file);SetBusy(false);Close();}catch{SetBusy(false);MessageBox.Show(this,T("Не удалось загрузить или установить обновление. Попробуй ещё раз.","Couldn't download or install the update. Please try again."),AppName,MessageBoxButtons.OK,MessageBoxIcon.Information);updateLink.Enabled=true;}}
     void DragHeader(object sender,MouseEventArgs e){if(e.Button!=MouseButtons.Left)return;if(sender==this && e.Y>54)return;ReleaseCapture();SendMessage(Handle,0xA1,2,0);}
     void ToggleMax(){if(WindowState==FormWindowState.Maximized)WindowState=FormWindowState.Normal;else{MaximizedBounds=Screen.FromControl(this).WorkingArea;WindowState=FormWindowState.Maximized;}maxButton.WindowGlyph=WindowState==FormWindowState.Maximized?"restore":"max";maxButton.Invalidate();LayoutWindow();}
     protected override void WndProc(ref Message m){base.WndProc(ref m);if(m.Msg==0x84 && WindowState==FormWindowState.Normal && (int)m.Result==1){long pos=m.LParam.ToInt64();Point p=PointToClient(new Point((short)(pos&65535),(short)((pos>>16)&65535)));int edge=6;bool l=p.X<edge,r=p.X>=Width-edge,t=p.Y<edge,b=p.Y>=Height-edge;if(l&&t)m.Result=(IntPtr)13;else if(r&&t)m.Result=(IntPtr)14;else if(l&&b)m.Result=(IntPtr)16;else if(r&&b)m.Result=(IntPtr)17;else if(l)m.Result=(IntPtr)10;else if(r)m.Result=(IntPtr)11;else if(t)m.Result=(IntPtr)12;else if(b)m.Result=(IntPtr)15;}}
@@ -255,14 +263,14 @@ class ChangeFontWindow : Form {
         headingTile.SetBounds(pad,80,cw,132);bodyTile.SetBounds(pad+cw+gap,80,cw,132);
         preview.SetBounds(pad,232,w-pad*2,previewH);
         int settingsY=232+previewH+24;spacingLabel.SetBounds(pad,settingsY+10,w-260,30);spacing.SetBounds(w-pad-160,settingsY,160,42);
-        int lineY=settingsY+64;separator.SetBounds(pad,lineY,w-pad*2,1);gameLabel.SetBounds(pad,lineY+24,w-pad*2-180,27);chooseGame.SetBounds(w-pad-158,lineY+14,158,37);
-        int actionY=lineY+62;apply.SetBounds(pad,actionY,cw,46);restore.SetBounds(pad+cw+gap,actionY,cw,46);status.SetBounds(pad,actionY+60,w/2-pad,24);official.SetBounds(w/2,actionY+60,w/2-pad,24);
+        int lineY=settingsY+64;separator.SetBounds(pad,lineY,w-pad*2,1);gameLabel.SetBounds(pad,lineY+24,w-pad*2-380,27);gameUpdate.SetBounds(w-pad-360,lineY+20,190,30);chooseGame.SetBounds(w-pad-158,lineY+14,158,37);
+        int actionY=lineY+62;apply.SetBounds(pad,actionY,cw,46);restore.SetBounds(pad+cw+gap,actionY,cw,46);status.SetBounds(pad,actionY+60,w/2-pad-110,24);autoUpdate.SetBounds(w-210,actionY+60,182,24);updateLink.SetBounds(w/2-100,actionY+60,190,24);
         if(Width>0 && Height>0){Region old=Region;using(var path=Skin.Round(new RectangleF(0,0,Width,Height),WindowState==FormWindowState.Maximized?1:12))Region=new Region(path);if(old!=null)old.Dispose();}Invalidate();
     }
     protected override void OnPaint(PaintEventArgs e){base.OnPaint(e);Skin.Shape(e.Graphics,new RectangleF(0.5F,0.5F,Width-1,Height-1),Color.Transparent,Skin.Border,WindowState==FormWindowState.Maximized?1:12);}
     string T(string russian,string english){return ru?russian:english;}
     void Localize(){bodyTile.Localize(ru);headingTile.Localize(ru);spacing.Localize(ru);ruButton.Selected=ru;enButton.Selected=!ru;ruButton.Invalidate();enButton.Invalidate();
-        official.Text=T("Оригинал – только на GitHub","Official release – only on GitHub");spacingLabel.Text=T("Расстояние между буквами","Letter spacing");UpdateApplyButton();restore.Text=T("Вернуть исходный","Restore original");chooseGame.Text=T("Выбрать папку","Choose folder");
+        autoUpdate.Text=T("Автообновление","Auto-update");updateTip.SetToolTip(autoUpdate,T("Автоматически искать обновления при запуске программы","Automatically check for updates when the program starts"));updateLink.Text=availableUpdate==null?"":T("Установить обновление","Install update");spacingLabel.Text=T("Расстояние между буквами","Letter spacing");UpdateApplyButton();restore.Text=T("Вернуть исходный","Restore original");chooseGame.Text=T("Выбрать папку","Choose folder");
         minButton.AccessibleName=T("Свернуть","Minimize");maxButton.AccessibleName=T("Развернуть или восстановить","Maximize or restore");closeButton.AccessibleName=T("Закрыть","Close");
         preview.AccessibleName=T("Предпросмотр шрифтов","Font preview");
         status.Text=applied?"":T("Готово","Ready");status.ForeColor=Skin.Muted;UpdateTiles();UpdateGame();RefreshPreview();
@@ -272,12 +280,12 @@ class ChangeFontWindow : Form {
     string Migrate(string path){try{return !string.IsNullOrEmpty(path) && File.Exists(path)?ImportPath(path):null;}catch{return null;}}
     void ImportFont(string path,bool heading){try{string saved=ImportPath(path);if(heading)PickBold(saved);else PickRegular(saved);}catch(Exception e){ShowError(e);}}
     void UpdateTiles(){var items=Library();headingTile.SetChoices(items,boldPath);bodyTile.SetSeparate(separate);bodyTile.SetChoices(items,separate?regularPath:boldPath);}
-    void UpdateGame(){bool found=File.Exists(Path.Combine(game??"","REPO.exe"));gameLabel.Text=found?T("●  Игра найдена","●  Game found"):T("Выбери папку игры","Choose your game folder");gameLabel.ForeColor=found?Skin.Green:Skin.Muted;}
+    void UpdateGame(){bool found=File.Exists(Path.Combine(game??"","REPO.exe"));gameLabel.Text=found?T("●  Игра найдена","●  Game found"):T("Выбери папку игры","Choose your game folder");gameLabel.ForeColor=found?Skin.Green:Skin.Muted;gameUpdate.Visible=found && SteamGameUpdate.IsPending(game);gameUpdate.Text=T("Обновить в Steam","Update in Steam");}
     void RefreshPreview(){if(preview==null || spacing==null)return;preview.Regular=separate?regularFace:boldFace;preview.Bold=boldFace;preview.Separate=separate;preview.Ru=ru;preview.Spacing=(double)spacing.Value;preview.Sample=T("Собирай. Выживай. Забирай.","Collect. Survive. Extract.");preview.Invalidate();}
     void PickRegular(string path){try{byte[] bytes=path==null?engine.DefaultFont(false):File.ReadAllBytes(path);FontInfo.Read(bytes);var next=new PreviewFace(bytes);var old=regularFace;regularFace=next;regularPath=path==null?null:Path.GetFullPath(path);separate=true;MarkPending();UpdateTiles();RefreshPreview();old.Dispose();SavePrefs();}catch(Exception e){ShowError(e);}}
     void PickBold(string path){try{byte[] bytes=path==null?engine.DefaultFont(true):File.ReadAllBytes(path);FontInfo.Read(bytes);var next=new PreviewFace(bytes);var old=boldFace;boldFace=next;boldPath=path==null?null:Path.GetFullPath(path);headingRegularPreset=false;MarkPending();UpdateTiles();RefreshPreview();old.Dispose();SavePrefs();}catch(Exception e){ShowError(e);}}
     UiPrefs LoadPrefs(){try{if(File.Exists(prefsPath)){var saved=new JavaScriptSerializer().Deserialize<UiPrefs>(File.ReadAllText(prefsPath));if(saved!=null)return saved;}}catch{}return new UiPrefs();}
-    void SavePrefs(){if(loading)return;try{Directory.CreateDirectory(Path.GetDirectoryName(prefsPath));var p=new UiPrefs{Ru=ru,Separate=separate,BodyMatchesHeading=!separate,HeadingRegularPreset=headingRegularPreset,Spacing=spacing.Value,Game=game,Regular=regularPath,Bold=boldPath};File.WriteAllText(prefsPath,new JavaScriptSerializer().Serialize(p),Encoding.UTF8);}catch{}}
+    void SavePrefs(){if(loading)return;try{Directory.CreateDirectory(Path.GetDirectoryName(prefsPath));var p=new UiPrefs{Ru=ru,Separate=separate,BodyMatchesHeading=!separate,HeadingRegularPreset=headingRegularPreset,AutoUpdate=autoUpdateEnabled,Spacing=spacing.Value,Game=game,Regular=regularPath,Bold=boldPath};File.WriteAllText(prefsPath,new JavaScriptSerializer().Serialize(p),Encoding.UTF8);}catch{}}
     string ErrorText(Exception e){
         if(e is UnauthorizedAccessException)return T("Нет прав на изменение файлов игры.","You don't have permission to change the game files.");
         if(ru)return e.Message;
@@ -311,6 +319,6 @@ class ChangeFontWindow : Form {
     }
 }
 static class Program {
-    [STAThread]static void Main(string[] args){Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);try{Application.Run(new ChangeFontWindow(args));}catch(Exception e){MessageBox.Show(e.Message,"R.E.P.O. Change Font",MessageBoxButtons.OK,MessageBoxIcon.Information);}}
+    [STAThread]static void Main(string[] args){if(AppUpdater.HandleInstall(args))return;Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);try{Application.Run(new ChangeFontWindow(args));}catch(Exception e){MessageBox.Show(e.Message,"R.E.P.O. Change Font",MessageBoxButtons.OK,MessageBoxIcon.Information);}}
 }
 
