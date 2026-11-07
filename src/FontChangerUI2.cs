@@ -255,7 +255,7 @@ class ChangeFontWindow : Form {
     readonly QuietButton apply,restore,chooseGame,ruButton,enButton,minButton,maxButton,closeButton;
     PreviewFace regularFace,boldFace;
     string game,regularPath,boldPath;
-    bool ru=true,separate=true,busy,loading=true,applied,headingRegularPreset,autoUpdateEnabled;
+    bool ru=true,separate=true,busy,loading=true,applied,headingRegularPreset,autoUpdateEnabled,windowShown,updateChecking;
     readonly string prefsPath;
     [DllImport("user32.dll")]static extern bool ReleaseCapture();
     [DllImport("user32.dll")]static extern IntPtr SendMessage(IntPtr hwnd,int msg,int wParam,int lParam);
@@ -289,7 +289,7 @@ class ChangeFontWindow : Form {
         chooseGame=new QuietButton{Ghost=true};chooseGame.Click+=delegate{using(var dialog=new FolderBrowserDialog{Description=ru?"Выбери папку R.E.P.O.":"Choose your R.E.P.O. folder",SelectedPath=game,ShowNewFolderButton=false})if(dialog.ShowDialog()==DialogResult.OK){game=dialog.SelectedPath;MarkPending();UpdateGame();SavePrefs();}};
         apply=new QuietButton{Primary=true};restore=new QuietButton();
         apply.Click+=async delegate{await Run(false);};restore.Click+=async delegate{await Run(true);};
-        status=new Label{ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9)};autoUpdate=new UpdateSwitch{Checked=autoUpdateEnabled,ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9),AutoSize=false,TextAlign=ContentAlignment.MiddleLeft};autoUpdate.CheckedChanged+=delegate{autoUpdateEnabled=autoUpdate.Checked;SavePrefs();};updateTip=new UpdateTooltip();autoUpdate.MouseEnter+=delegate{ShowUpdateTip();};autoUpdate.MouseLeave+=delegate{updateTip.Visible=false;};autoUpdate.GotFocus+=delegate{ShowUpdateTip();};autoUpdate.LostFocus+=delegate{updateTip.Visible=false;};updateLink=new LinkLabel{LinkColor=Skin.Accent,ActiveLinkColor=Skin.Text,VisitedLinkColor=Skin.Accent,BackColor=Skin.Background,TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",9),LinkBehavior=LinkBehavior.HoverUnderline,Visible=false};updateLink.LinkClicked+=delegate{OpenUpdate();};
+        status=new Label{ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9)};autoUpdate=new UpdateSwitch{Checked=autoUpdateEnabled,ForeColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9),AutoSize=false,TextAlign=ContentAlignment.MiddleLeft};autoUpdate.CheckedChanged+=async delegate{autoUpdateEnabled=autoUpdate.Checked;SavePrefs();if(!autoUpdateEnabled){availableUpdate=null;updateLink.Visible=false;}else if(windowShown)await CheckUpdates();};updateTip=new UpdateTooltip();autoUpdate.MouseEnter+=delegate{ShowUpdateTip();};autoUpdate.MouseLeave+=delegate{updateTip.Visible=false;};autoUpdate.GotFocus+=delegate{ShowUpdateTip();};autoUpdate.LostFocus+=delegate{updateTip.Visible=false;};updateLink=new LinkLabel{LinkColor=Skin.Accent,ActiveLinkColor=Skin.Text,VisitedLinkColor=Skin.Accent,BackColor=Skin.Background,TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",9),LinkBehavior=LinkBehavior.HoverUnderline,Visible=false};updateLink.LinkClicked+=delegate{OpenUpdate();};
         githubLink=new LinkLabel{Text="GitHub",LinkColor=Skin.Muted,ActiveLinkColor=Skin.Muted,VisitedLinkColor=Skin.Muted,BackColor=Skin.Background,Font=new Font("Segoe UI",9),LinkBehavior=LinkBehavior.HoverUnderline,TabIndex=8};githubLink.LinkClicked+=delegate{try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/frlvv/REPO-Change-Font"){UseShellExecute=true});}catch{MessageBox.Show(this,T("Не удалось открыть GitHub.","Could not open GitHub."),AppName);}};status.Visible=false;status.TextChanged+=delegate{bool hasStatus=!string.IsNullOrEmpty(status.Text);status.Visible=hasStatus;githubLink.Visible=!hasStatus;};
         Controls.AddRange(new Control[]{title,appImage,minButton,maxButton,closeButton,ruButton,enButton,headingTile,bodyTile,preview,spacingLabel,spacing,separator,gameLabel,gameUpdate,chooseGame,apply,restore,status,githubLink,autoUpdate,updateLink,updateTip});
         minButton.TabStop=maxButton.TabStop=closeButton.TabStop=preview.TabStop=false;
@@ -297,10 +297,20 @@ class ChangeFontWindow : Form {
         Activated+=delegate{UpdateGame();};Deactivate+=delegate{updateTip.Visible=false;};Resize+=delegate{LayoutWindow();};FormClosing+=delegate(object s,FormClosingEventArgs e){if(busy)e.Cancel=true;else SavePrefs();};
         FormClosed+=delegate{regularFace.Dispose();boldFace.Dispose();appImage.Image.Dispose();Icon.Dispose();windowIconStream.Dispose();};
         LayoutWindow();Localize();loading=false;
-        if(autoUpdateEnabled)Shown+=async delegate{await CheckUpdates();};
+        Shown+=async delegate{windowShown=true;if(autoUpdateEnabled)await CheckUpdates();};
         if(args.Length>0 && File.Exists(args[0]))ImportFont(args[0],false);if(args.Length>1 && File.Exists(args[1]))ImportFont(args[1],true);
     }
-    async Task CheckUpdates(){try{var release=await Task.Run(()=>AppUpdater.Check());if(IsDisposed || !autoUpdateEnabled || release==null)return;availableUpdate=release;updateLink.Text=T("Открыть обновление","Open release");updateLink.Visible=true;}catch{}}
+    async Task CheckUpdates() {
+        if(updateChecking || IsDisposed || Disposing || !autoUpdateEnabled)return;
+        updateChecking=true;
+        try {
+            var release=await Task.Run(()=>AppUpdater.Check());
+            if(IsDisposed || Disposing || !autoUpdateEnabled || release==null)return;
+            availableUpdate=release;
+            updateLink.Text=T("Открыть обновление","Open release");
+            updateLink.Visible=true;
+        } catch {} finally {updateChecking=false;}
+    }
     void OpenUpdate(){if(availableUpdate==null)return;try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(availableUpdate.PageUrl){UseShellExecute=true});}catch{MessageBox.Show(this,T("Не удалось открыть страницу обновления.","Couldn't open the release page."),AppName,MessageBoxButtons.OK,MessageBoxIcon.Information);}}
     void PositionUpdateTip(){if(updateTip==null || autoUpdate==null)return;int width=340,height=48;updateTip.SetBounds(autoUpdate.Right-width,autoUpdate.Top-height-6,width,height);}
     void ShowUpdateTip(){PositionUpdateTip();updateTip.Visible=true;updateTip.BringToFront();}
